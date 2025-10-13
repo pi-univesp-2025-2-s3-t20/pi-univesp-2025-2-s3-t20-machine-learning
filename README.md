@@ -9,7 +9,7 @@ API para prever o **custo estimado de produtos** com base em características co
 ## 🚀 Funcionalidades
 
 - 🔍 `/model/predict`: Gera uma estimativa de custo total com base nos dados fornecidos.
-- 🔄 `/mode/update`: Atualiza o modelo com novos dados de treinamento.
+- 🔄 `/model/update`: Atualiza o modelo com novos dados de treinamento.
 
 ---
 
@@ -33,3 +33,4 @@ API para prever o **custo estimado de produtos** com base em características co
 |`host`| Servidor onde está localizado o database (no projeto foi usado solução cloud, mas pode ser local)|
 |`port`| Porta para onde está aberta para o database, no servidor|
 |`database`| Banco de dados |
+
