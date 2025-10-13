@@ -30,7 +30,8 @@ API para prever o **custo estimado de produtos** com base em características co
 |`driver`| SQL usado juntamente com o seu driver|
 |`user`| Username para acessar o database|
 |`password`| Senha usada para autenticação |
-|`host`| Servidor onde está localizado o database (no projeto foi usado solução cloud, mas pode ser local)|
+|`host`| Servidor onde o banco de dados está hospedado. No projeto, foi utilizada uma solução na nuvem (cloud), mas também pode ser um servidor local|
 |`port`| Porta para onde está aberta para o database, no servidor|
 |`database`| Banco de dados |
+
 
