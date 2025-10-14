@@ -196,7 +196,6 @@ class ModelPipeline:
         
         data_selected = self.select_data(data)
         
-        print(data_selected.columns)
         transformed = transformer.transform(data_selected)
         
         predicted = model.predict(transformed)
