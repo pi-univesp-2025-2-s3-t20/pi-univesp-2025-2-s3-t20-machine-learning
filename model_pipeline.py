@@ -41,10 +41,9 @@ class ModelPipeline:
         tmp[['produto','categoria']] = base[['produto','categoria']]
         tmp['pedido_centopreco'] = (base['pedido_minimo'] + base['cento_preco']) / (base['cento_preco'] + 1e-6)
         
-        custo_noise = {cat: np.random.uniform(0.6, 0.75) for cat in tmp['produto'].unique()}
-        base['noise'] = base['produto'].map(custo_noise)
-        tmp['custo'] = base['pedido_minimo'] * np.round(np.random.normal(loc=base['noise'], scale=0.1, size=base.shape[0]),2)
         
+        lognorm_noise = np.random.lognormal(mean=0, sigma=0.01, size=base.shape[0])
+        tmp['custo'] = np.round(base['preco_unitario'] * base['pedido_minimo'] * lognorm_noise, 2)
         
         tmp['razao_preco_pedido_custo'] = base['preco_unitario'] / ((base['pedido_minimo'] * base['cento_preco']) + 1e-6)
         tmp['razao_receita_pedido_quantidade'] = base['receita_total'] / ((base['pedido_minimo'] * base['quantidade']) + 1e-6)
@@ -225,4 +224,4 @@ if __name__ == '__main__':
     
     result = t.predict(model, transformer, data)
         
-    print(result)
+    print(pd.concat([data,result], axis=1).to_dict())
