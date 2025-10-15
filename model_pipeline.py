@@ -42,12 +42,22 @@ class ModelPipeline:
         tmp['pedido_centopreco'] = (base['pedido_minimo'] + base['cento_preco']) / (base['cento_preco'] + 1e-6)
         
         
-        lognorm_noise = np.random.lognormal(mean=0, sigma=0.01, size=base.shape[0])
-        tmp['custo'] = np.round(base['preco_unitario'] * base['pedido_minimo'] * lognorm_noise, 2)
+        lognorm_noise = np.random.lognormal(mean=-0.4, sigma=0.09, size=base.shape[0])
+        tmp['custo'] = np.round((base['pedido_minimo']/base['quantidade']) * base['receita_total'] * lognorm_noise, 2)
         
         tmp['razao_preco_pedido_custo'] = base['preco_unitario'] / ((base['pedido_minimo'] * base['cento_preco']) + 1e-6)
         tmp['razao_receita_pedido_quantidade'] = base['receita_total'] / ((base['pedido_minimo'] * base['quantidade']) + 1e-6)
         tmp['variacao_centopreco_pedido'] = (base['pedido_minimo'] - base['cento_preco']) / (base['cento_preco'] + 1e-6)
+        
+        vendas_produto_categoria = base.groupby(['categoria', 'produto']).size().reset_index(name='vendas_produto')
+        vendas_categoria = base.groupby('categoria').size().reset_index(name='vendas_categoria')
+
+        probabilidades = pd.merge(vendas_produto_categoria, vendas_categoria, on='categoria')
+
+        tmp = tmp.merge(probabilidades[['produto','categoria','vendas_produto','vendas_categoria']], 
+                on=['produto','categoria'], 
+                how='left')
+        tmp['prob_produto_categoria'] = tmp['vendas_produto'] / tmp['vendas_categoria']
 
         return tmp        
     def get_engine(self):
@@ -181,6 +191,16 @@ class ModelPipeline:
         merged['razao_receita_pedido_quantidade'] = merged['receita_total'] / ((merged['pedido_minimo'] * merged['quantidade']) + 1e-6)
         merged['variacao_centopreco_pedido'] = (merged['pedido_minimo'] - merged['cento_preco']) / (merged['cento_preco'] + 1e-6)
 
+        vendas_produto_categoria = merged.groupby(['categoria', 'produto']).size().reset_index(name='vendas_produto')
+        vendas_categoria = merged.groupby('categoria').size().reset_index(name='vendas_categoria')
+
+        probabilidades = pd.merge(vendas_produto_categoria, vendas_categoria, on='categoria')
+
+        merged = merged.merge(probabilidades[['produto','categoria','vendas_produto','vendas_categoria']], 
+                on=['produto','categoria'], 
+                how='left')
+        merged['prob_produto_categoria'] = merged['vendas_produto'] / merged['vendas_categoria']
+        
         merged = merged.drop(['cento_preco', 'pedido_minimo', 'quantidade','preco_unitario','receita_total'], axis=1)
         
         return merged
