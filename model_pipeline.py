@@ -10,8 +10,12 @@ from rdt import HyperTransformer
 from copulas.multivariate import GaussianMultivariate
 from sklearn.ensemble import RandomForestRegressor
 
+from sklearn.linear_model import LogisticRegression
+
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+from sklearn.preprocessing import StandardScaler
 
 load_dotenv()
 
@@ -42,8 +46,8 @@ class ModelPipeline:
         tmp['pedido_centopreco'] = (base['pedido_minimo'] + base['cento_preco']) / (base['cento_preco'] + 1e-6)
         
         
-        lognorm_noise = np.random.lognormal(mean=-0.4, sigma=0.09, size=base.shape[0])
-        tmp['custo'] = np.round((base['pedido_minimo']/base['quantidade']) * base['receita_total'] * lognorm_noise, 2)
+        norm_noise = np.random.normal(loc=0.6, scale=0.05, size=base.shape[0])
+        tmp['custo'] = base['cento_preco'] * norm_noise
         
         tmp['razao_preco_pedido_custo'] = base['preco_unitario'] / ((base['pedido_minimo'] * base['cento_preco']) + 1e-6)
         tmp['razao_receita_pedido_quantidade'] = base['receita_total'] / ((base['pedido_minimo'] * base['quantidade']) + 1e-6)
@@ -59,6 +63,7 @@ class ModelPipeline:
                 how='left')
         tmp['prob_produto_categoria'] = tmp['vendas_produto'] / tmp['vendas_categoria']
 
+        tmp = tmp.drop(['produto','categoria'], axis=1)
         return tmp        
     def get_engine(self):
         
@@ -83,6 +88,7 @@ class ModelPipeline:
         base['custo'] = target
         
         model = GaussianMultivariate()
+        
         model.fit(base)
         
         return model.sample(sample) if sample else model.sample(base.shape[0]), transformer
@@ -95,9 +101,14 @@ class ModelPipeline:
         
         x_train, x_test, y_train, y_test = train_test_split(base.drop(['custo'], axis=1), base['custo'], test_size=0.2 )
         
-        model.fit(x_train, y_train)
         
-        pred = model.predict(x_test)
+        scaler = StandardScaler()
+        x_train_scaled = scaler.fit_transform(x_train)
+        x_test_scaled = scaler.transform(x_test)
+        
+        model.fit(x_train_scaled, y_train)
+        
+        pred = model.predict(x_test_scaled)
         
         print('MSE ',mean_squared_error(y_test, pred)) 
         print('MAE ',mean_absolute_error(y_test, pred)) 
@@ -120,11 +131,15 @@ class ModelPipeline:
 
         x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+        scaler = StandardScaler()
+        x_train_scaled = scaler.fit_transform(x_train)
+        x_test_scaled = scaler.transform(x_test)
+        
         model = RandomForestRegressor(random_state=42)
 
         param_grid = {
-            'n_estimators': [100, 150, 200],
-            'max_depth': [10, 20, None],
+            'n_estimators': [50, 100, 150, 200],
+            'max_depth': [5,10, 20, None],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 4],
             'max_features': ['sqrt', 'log2'],
@@ -141,10 +156,10 @@ class ModelPipeline:
             random_state=42
         )
 
-        search.fit(x_train, y_train)
+        search.fit(x_train_scaled, y_train)
         best_model = search.best_estimator_
 
-        pred = best_model.predict(x_test)
+        pred = best_model.predict(x_test_scaled)
 
         print("\n🔍 Melhores hiperparâmetros:")
         print(search.best_params_)
@@ -160,7 +175,7 @@ class ModelPipeline:
         })
         print('\n🎯 Importância das features:\n', importance.sort_values(by='importance', ascending=False))
 
-        return best_model, transformer if transformer else None
+        return best_model, scaler, transformer if transformer else None
     
     def select_data(self, data):
         
@@ -201,24 +216,25 @@ class ModelPipeline:
                 how='left')
         merged['prob_produto_categoria'] = merged['vendas_produto'] / merged['vendas_categoria']
         
-        merged = merged.drop(['cento_preco', 'pedido_minimo', 'quantidade','preco_unitario','receita_total'], axis=1)
+        merged = merged.drop(['produto','categoria','cento_preco', 'pedido_minimo', 'quantidade','preco_unitario','receita_total'], axis=1)
         
         return merged
         
     
-    def predict(self, model, transformer: HyperTransformer, data: pd.DataFrame):
+    def predict(self, model, scaler: StandardScaler, transformer: HyperTransformer, data: pd.DataFrame):
         
-        if not isinstance(model, RandomForestRegressor) and not isinstance(transformer, HyperTransformer):
-            raise ValueError('invalid model or transformer parameter')
+        if not isinstance(scaler, StandardScaler) or not isinstance(transformer, HyperTransformer):
+            raise ValueError('invalid model, scaler or transformer  parameter')
+        
         
         if not all(data.columns.isin(['produto','quantidade','preco_unitario','receita_total'])):
             raise ValueError('invalid parameter data')
         
         data_selected = self.select_data(data)
-        
         transformed = transformer.transform(data_selected)
+        data_scaled = scaler.transform(transformed)
         
-        predicted = model.predict(transformed)
+        predicted = model.predict(data_scaled)
         
         final = transformer.reverse_transform(transformed)
         final['custo_sugerido'] = np.round(predicted,2)
@@ -228,7 +244,7 @@ class ModelPipeline:
     
     def save_model(self, model, transformer):
         
-        if not isinstance(model, RandomForestRegressor) and not isinstance(transformer, HyperTransformer):
+        if not isinstance(model, RandomForestRegressor) or not isinstance(transformer, HyperTransformer):
             raise ValueError('invalid model or transformer parameter')
         
         joblib.dump({'model':model, 'transformer':transformer}, 'model.pkl')
@@ -237,10 +253,10 @@ class ModelPipeline:
 if __name__ == '__main__':
     
     t = ModelPipeline()
-    model, transformer = t.tune_model(sample=5000)
+    model, scaler, transformer = t.tune_model(sample=5000)
     
     data = pd.DataFrame([{'produto':'Coxinha de Frango', 'quantidade': 75, 'preco_unitario':0.8, 'receita_total': 60.0}])
     
-    result = t.predict(model, transformer, data)
+    result = t.predict(model, scaler, transformer, data)
         
     print(pd.concat([data,result], axis=1).to_dict())

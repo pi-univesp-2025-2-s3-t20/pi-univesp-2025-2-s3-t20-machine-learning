@@ -1,14 +1,10 @@
 from flask import Flask, request, jsonify
 import pandas as pd
-import json
 import joblib
 import os 
-from model_pipeline import ModelPipeline
-
+from dl_model_pipeline import DL_pipeline
 
 app = Flask()
-
-
 
 @app.route('/model/predict', methods=['POST'])
 def predict():
@@ -18,20 +14,21 @@ def predict():
             
             form = request.get_json()
         
-            data = json.loads(form)
-            data = pd.DataFrame([data])
+            data = pd.DataFrame([form])
             
-            pipeline = ModelPipeline()
+            pipeline = DL_pipeline()
             
             if os.path.exists('model.pkl'):
-                model, transformer = joblib.load('model.pkl')
+                model, scaler, transformer = joblib.load('model.pkl')
             else:
-                model = pipeline.create_model(sample=5000)
+                model, scaler, transformer = pipeline.create_nn_model(sample=5000)
+                pipeline.save_model(model, scaler, transformer)
                 
-            return jsonify(pipeline.predict(model, transformer, data).to_dict(orient='records'))
-        except ValueError or RuntimeError:
+            return jsonify(pipeline.predict(model, scaler, transformer, data).to_dict(orient='records'))
+        except (ValueError, RuntimeError):
             return jsonify({'msg':'The provided parameters appear to be invalid'})
-        
+        except Exception as e:
+            return jsonify({'msg':'An error has occurred during processing', 'error': str(e)})
         
     return jsonify({'msg':'This endpoint only accepts POST requests'})
 
@@ -39,12 +36,11 @@ def predict():
 def retrain():
     
     try:
-        pipeline = ModelPipeline()
+        pipeline = DL_pipeline()
         
-        model, transformer = pipeline.tune_model()
-        
-        pipeline.save_model(model, transformer)
+        model, scaler, transformer = pipeline.create_nn_model(sample=5000)
+        pipeline.save_model(model, scaler, transformer)
         
         return jsonify({'msg':'model updated'})
-    except:
-        return jsonify({'msg':'An error has occurred during processing'})
+    except Exception as e:
+        return jsonify({'msg':'An error has occurred during processing', 'error': str(e)})
