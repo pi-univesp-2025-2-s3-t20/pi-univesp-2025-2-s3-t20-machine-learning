@@ -33,7 +33,7 @@ class ModelPipeline:
     def _load_reference_data(self):
         """Carrega a tabela de produtos do banco de dados."""
         eng = self.get_engine()
-        query = "SELECT produto, categoria, cento_preco, pedido_minimo FROM produtos" # Corrigido para corresponder ao código
+        query = "SELECT produto, categoria, cento_preco, pedido_minimo FROM produtos"
         df = pd.read_sql(query, eng)
         df['produto'] = df['produto'].str.lower().str.strip()
         

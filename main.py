@@ -6,7 +6,6 @@ from model_pipeline import ModelPipeline
 
 app = Flask(__name__)
 
-# --- OTIMIZAÇÃO PRINCIPAL ---
 # Instancia o pipeline e carrega os artefatos do modelo UMA ÚNICA VEZ no escopo global.
 # Isso evita que o banco de dados seja consultado e que os arquivos sejam lidos a cada requisição.
 pipeline = ModelPipeline()
