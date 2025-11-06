@@ -1,11 +1,16 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import pandas as pd
 import joblib
 import os 
 from model_pipeline import ModelPipeline
 
 app = Flask(__name__)
-
+# Configura o CORS para permitir requisições de qualquer origem.
+# Em um ambiente de produção, é recomendado restringir as origens
+# para domínios específicos por segurança. Ex: CORS(app, resources={r"/model/*": {"origins": "http://seu-frontend.com"}})
+CORS(app)
+ 
 # Instancia o pipeline e carrega os artefatos do modelo UMA ÚNICA VEZ no escopo global.
 # Isso evita que o banco de dados seja consultado e que os arquivos sejam lidos a cada requisição.
 pipeline = ModelPipeline()
