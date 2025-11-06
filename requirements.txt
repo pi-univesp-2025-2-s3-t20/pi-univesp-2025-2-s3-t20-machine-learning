@@ -10,3 +10,4 @@ python-dotenv
 rdt
 copulas
 psycopg2-binary
+gunicorn
