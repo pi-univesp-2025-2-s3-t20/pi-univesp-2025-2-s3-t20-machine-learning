@@ -33,9 +33,26 @@ class ModelPipeline:
     def _load_reference_data(self):
         """Carrega a tabela de produtos do banco de dados."""
         eng = self.get_engine()
-        query = "SELECT produto, categoria, cento_preco, pedido_minimo FROM produtos"
+        query = "SELECT produto, categoria, cento_preco, pedido_minimo FROM produtos" # Corrigido para corresponder ao código
         df = pd.read_sql(query, eng)
         df['produto'] = df['produto'].str.lower().str.strip()
+        
+        # Otimiza o uso de memória do DataFrame
+        df = self._optimize_dataframe_memory(df)
+        return df
+
+    def _optimize_dataframe_memory(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Reduz o uso de memória de um DataFrame convertendo os tipos de dados."""
+        print(f"🧠 Otimizando memória... Uso antes: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                # Converte colunas de texto com poucos valores únicos para 'category'
+                if len(df[col].unique()) / len(df[col]) < 0.5:
+                    df[col] = df[col].astype('category')
+            elif df[col].dtype.kind in 'if':
+                # Reduz o tamanho de colunas numéricas (int/float)
+                df[col] = pd.to_numeric(df[col], downcast='float')
+        print(f"✅ Otimização concluída. Uso agora: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
         return df
 
     def get_basedata(self):
