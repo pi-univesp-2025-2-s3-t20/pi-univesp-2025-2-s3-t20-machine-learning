@@ -1,0 +1,12 @@
+pandas
+numpy
+scikit-learn
+joblib
+keras
+jax
+flask
+sqlalchemy
+python-dotenv
+rdt
+copulas
+psycopg2-binary
