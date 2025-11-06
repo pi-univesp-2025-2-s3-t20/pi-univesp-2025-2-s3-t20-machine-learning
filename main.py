@@ -46,40 +46,18 @@ def predict():
 @app.route('/model/update')
 def retrain():
     
-    try:
-        pipeline = DL_pipeline()
-        
-        # O treinamento agora é feito executando dl_model_pipeline.py diretamente
-        # Esta rota pode ser usada para disparar o retreinamento no servidor
-        model, scaler, transformer = pipeline.create_nn_model(sample=10000) # Aumentando a amostra para o retreino
-        pipeline.save_model(model, scaler, transformer) 
-        
-        return jsonify({'msg':'model updated'})
-    except Exception as e:
-        return jsonify({'msg':'An error has occurred during processing', 'error': str(e)})
-
-def train_model_if_not_exists():
-    """Verifica se o modelo existe e o treina caso não exista."""
-    if not os.path.exists('dl_model.pkl'):
-        print("⚠️  Modelo 'dl_model.pkl' não encontrado.")
-        print("🚀  Iniciando treinamento do modelo antes de iniciar o servidor...")
-        try:
-            pipeline = DL_pipeline()
-            model, scaler, transformer = pipeline.create_nn_model(sample=5000)
-            pipeline.save_model(model, scaler, transformer)
-            print("✅  Treinamento concluído e modelo salvo com sucesso!")
-        except Exception as e:
-            print(f"❌ Erro durante o treinamento inicial: {e}")
-            # Decide se o app deve parar ou continuar sem o modelo
-            # Neste caso, vamos parar para evitar que a API rode sem funcionalidade.
-            raise SystemExit("Não foi possível treinar o modelo inicial. A aplicação será encerrada.")
+    # Esta rota é desativada em produção para evitar o consumo excessivo de recursos.
+    # O retreinamento deve ser feito em um ambiente separado.
+    return jsonify({'msg':'A rota de retreinamento está desativada neste ambiente.'}), 403
 
 # Executa o treinamento na inicialização, ANTES de o Gunicorn iniciar os workers.
 # Isso garante que o modelo esteja pronto quando a aplicação começar a servir.
 def initialize_app():
     """Função para preparar tudo que a aplicação precisa antes de iniciar."""
     global artifacts
-    train_model_if_not_exists()
+    if not os.path.exists('dl_model.pkl'):
+        raise FileNotFoundError("Arquivo de modelo 'dl_model.pkl' não encontrado. Treine o modelo localmente e faça o commit.")
+
     print("🧠 Carregando artefatos do modelo ('dl_model.pkl') em memória...")
     artifacts = joblib.load('dl_model.pkl')
     print("✅ Artefatos do modelo carregados com sucesso.")

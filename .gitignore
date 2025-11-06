@@ -11,8 +11,9 @@ env/
 .env/
 
 # Arquivos de modelo e pré-processamento (gerados pelo script)
-*.pkl
-*.keras
+# *.pkl  <- Comentado para permitir o commit do modelo treinado
+# *.keras
+ca.pem
 
 # Arquivos de configuração de ambiente (contêm senhas e chaves)
 .env
