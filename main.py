@@ -2,14 +2,14 @@ from flask import Flask, request, jsonify
 import pandas as pd
 import joblib
 import os 
-from dl_model_pipeline import DL_pipeline
+from model_pipeline import ModelPipeline
 
 app = Flask(__name__)
 
 # --- OTIMIZAÇÃO PRINCIPAL ---
 # Instancia o pipeline e carrega os artefatos do modelo UMA ÚNICA VEZ no escopo global.
 # Isso evita que o banco de dados seja consultado e que os arquivos sejam lidos a cada requisição.
-pipeline = DL_pipeline()
+pipeline = ModelPipeline()
 artifacts = None
 
 @app.route('/health', methods=['GET'])

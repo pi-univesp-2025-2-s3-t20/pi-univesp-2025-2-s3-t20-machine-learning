@@ -2,8 +2,6 @@ pandas
 numpy
 scikit-learn
 joblib
-keras
-jax
 flask
 sqlalchemy
 python-dotenv
