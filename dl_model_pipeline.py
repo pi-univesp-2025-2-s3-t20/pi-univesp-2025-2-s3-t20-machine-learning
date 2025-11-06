@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import joblib
 import pprint
+import time
 
 from keras import layers
 from keras import optimizers, losses, metrics
@@ -86,29 +87,26 @@ class DL_pipeline(ModelPipeline):
         return final
 
     def save_model(self, model, scaler, transformer):
-        # Salvar modelo keras em formato .keras futuramente suportado via JAX
-        # model.save("dl_model.keras")  # opcional se suportado
-
+        """Salva o modelo, scaler e transformer em um único arquivo .pkl."""
+        print(f"\n💾 Salvando artefatos em 'dl_model.pkl'...")
         joblib.dump({
             'model': model,
             'scaler': scaler,
             'transformer': transformer
-        }, 'dl_preprocessing.pkl')
+        }, 'dl_model.pkl')
+        print("✅ Artefatos salvos com sucesso!")
         
 
 
 if __name__ == '__main__':
+    """
+    Este bloco serve para treinar o modelo e salvar os artefatos.
+    Execute `python dl_model_pipeline.py` para gerar o arquivo 'dl_model.pkl'.
+    """
+    start_time = time.time()
     t = DL_pipeline()
     model, scaler, transformer = t.create_nn_model(sample=5000)
-
-    data = pd.DataFrame([{
-        'produto': 'Coxinha de Frango',
-        'quantidade': 75,
-        'preco_unitario': 0.8,
-        'receita_total': 60.0
-    }])
-
-    predicted_cost = t.predict(model, scaler, transformer, data)
-
-    print('custo sugerido:')
-    pprint.pprint(predicted_cost.to_dict(), width=100)
+    t.save_model(model, scaler, transformer)
+    end_time = time.time()
+    duration = end_time - start_time
+    print(f"\n⏱️  Tempo total de treinamento e salvamento: {duration:.2f} segundos")
