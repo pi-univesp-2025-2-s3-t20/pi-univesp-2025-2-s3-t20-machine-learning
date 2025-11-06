@@ -6,6 +6,12 @@ from dl_model_pipeline import DL_pipeline
 
 app = Flask(__name__)
 
+# --- OTIMIZAÇÃO PRINCIPAL ---
+# Instancia o pipeline e carrega os artefatos do modelo UMA ÚNICA VEZ no escopo global.
+# Isso evita que o banco de dados seja consultado e que os arquivos sejam lidos a cada requisição.
+pipeline = DL_pipeline()
+artifacts = None
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """
@@ -24,15 +30,10 @@ def predict():
         
             data = pd.DataFrame([form])
             
-            pipeline = DL_pipeline()
-            
-            # Verifica se o modelo treinado existe
-            if os.path.exists('dl_model.pkl'):
-                artifacts = joblib.load('dl_model.pkl')
-                model, scaler, transformer = artifacts['model'], artifacts['scaler'], artifacts['transformer']
-            else:
-                # Se o modelo não existir, retorna um erro claro. O treinamento deve ser feito separadamente.
-                return jsonify({'msg': 'Erro: Modelo não encontrado. Execute o script de treinamento primeiro.'}), 500
+            # Usa os artefatos pré-carregados
+            if artifacts is None:
+                return jsonify({'msg': 'Erro: Artefatos do modelo não foram carregados na inicialização.'}), 500
+            model, scaler, transformer = artifacts['model'], artifacts['scaler'], artifacts['transformer']
                 
             return jsonify(pipeline.predict(model, scaler, transformer, data).to_dict(orient='records'))
         except (ValueError, RuntimeError):
@@ -75,7 +76,15 @@ def train_model_if_not_exists():
 
 # Executa o treinamento na inicialização, ANTES de o Gunicorn iniciar os workers.
 # Isso garante que o modelo esteja pronto quando a aplicação começar a servir.
-train_model_if_not_exists()
+def initialize_app():
+    """Função para preparar tudo que a aplicação precisa antes de iniciar."""
+    global artifacts
+    train_model_if_not_exists()
+    print("🧠 Carregando artefatos do modelo ('dl_model.pkl') em memória...")
+    artifacts = joblib.load('dl_model.pkl')
+    print("✅ Artefatos do modelo carregados com sucesso.")
+
+initialize_app()
 
 if __name__ == '__main__':
     # Para desenvolvimento local, o Gunicorn não é usado.

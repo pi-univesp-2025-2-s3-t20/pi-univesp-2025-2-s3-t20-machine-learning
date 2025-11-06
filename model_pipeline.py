@@ -21,6 +21,23 @@ load_dotenv()
 
 class ModelPipeline:
     
+    def __init__(self):
+        """
+        Inicializa o pipeline carregando os dados de referência dos produtos
+        uma única vez para evitar consultas repetidas ao banco de dados.
+        """
+        print("📦 Carregando dados de referência dos produtos em memória...")
+        self.produtos_df = self._load_reference_data()
+        print("✅ Dados de referência carregados com sucesso.")
+
+    def _load_reference_data(self):
+        """Carrega a tabela de produtos do banco de dados."""
+        eng = self.get_engine()
+        query = "SELECT produto, categoria, cento_preco, pedido_minimo FROM produtos"
+        df = pd.read_sql(query, eng)
+        df['produto'] = df['produto'].str.lower().str.strip()
+        return df
+
     def get_basedata(self):
         
         eng = self.get_engine()
@@ -182,20 +199,9 @@ class ModelPipeline:
         if not all(data.columns.isin(['produto','quantidade','preco_unitario','receita_total'])):
             raise ValueError('invalid parameter data')
         
-        eng = self.get_engine()
-        
-        query = '''
-        
-        SELECT 
-        
-        p.produto, p.categoria, p.cento_preco, p.pedido_minimo
-        
-        FROM produtos p
-        '''
-        base = pd.read_sql(query, eng)
-        base = base.dropna()
-        
-        base['produto'] = base['produto'].str.lower().str.strip()
+        # Usa o DataFrame de produtos pré-carregado em vez de consultar o banco
+        base = self.produtos_df.copy()
+
         data['produto'] = data['produto'].str.lower().str.strip()
         
         merged = base.merge(data, how='right', on='produto')
