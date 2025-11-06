@@ -73,6 +73,10 @@ def train_model_if_not_exists():
             # Neste caso, vamos parar para evitar que a API rode sem funcionalidade.
             raise SystemExit("Não foi possível treinar o modelo inicial. A aplicação será encerrada.")
 
+# Executa o treinamento na inicialização, ANTES de o Gunicorn iniciar os workers.
+# Isso garante que o modelo esteja pronto quando a aplicação começar a servir.
+train_model_if_not_exists()
+
 if __name__ == '__main__':
-    train_model_if_not_exists()
-    app.run(debug=True, port=8000)
+    # Para desenvolvimento local, o Gunicorn não é usado.
+    app.run(host='0.0.0.0', port=8000, debug=True)
