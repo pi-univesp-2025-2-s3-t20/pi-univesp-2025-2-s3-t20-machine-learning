@@ -75,4 +75,4 @@ def train_model_if_not_exists():
 
 if __name__ == '__main__':
     train_model_if_not_exists()
-    app.run(debug=True)
+    app.run(debug=True, port=8000)
