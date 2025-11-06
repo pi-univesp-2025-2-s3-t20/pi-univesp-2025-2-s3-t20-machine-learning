@@ -24,7 +24,7 @@ O projeto foi reestruturado para ser mais eficiente e robusto, seguindo as melho
 
 ##  Endpoints da API
 
-- `POST /model/predict`: Recebe os dados de uma venda e retorna uma estimativa de custo.
+- `POST /model/predict`: Recebe os dados de uma venda e retorna uma estimativa de custo. **Importante**: o custo estimado refere-se ao lote total de itens da venda, não ao custo unitário.
 - `GET /health`: Endpoint de health check que retorna o status da API. Útil para monitoramento em plataformas de nuvem.
 - `GET /model/update`: **Desativada em produção.** Retorna uma mensagem indicando que o retreinamento deve ser feito offline.
 
