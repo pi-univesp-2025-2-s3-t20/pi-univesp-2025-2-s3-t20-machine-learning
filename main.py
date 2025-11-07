@@ -1,10 +1,28 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import pandas as pd
 import joblib
 import os 
-from dl_model_pipeline import DL_pipeline
+from model_pipeline import ModelPipeline
 
-app = Flask()
+app = Flask(__name__)
+# Configura o CORS para permitir requisições de qualquer origem.
+# Em um ambiente de produção, é recomendado restringir as origens
+# para domínios específicos por segurança. Ex: CORS(app, resources={r"/model/*": {"origins": "http://seu-frontend.com"}})
+CORS(app)
+ 
+# Instancia o pipeline e carrega os artefatos do modelo UMA ÚNICA VEZ no escopo global.
+# Isso evita que o banco de dados seja consultado e que os arquivos sejam lidos a cada requisição.
+pipeline = ModelPipeline()
+artifacts = None
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Endpoint de health check para verificar se a API está no ar.
+    Retorna um status 200 OK com uma mensagem simples.
+    """
+    return jsonify({"status": "ok", "message": "API is running"}), 200
 
 @app.route('/model/predict', methods=['POST'])
 def predict():
@@ -16,13 +34,10 @@ def predict():
         
             data = pd.DataFrame([form])
             
-            pipeline = DL_pipeline()
-            
-            if os.path.exists('model.pkl'):
-                model, scaler, transformer = joblib.load('model.pkl')
-            else:
-                model, scaler, transformer = pipeline.create_nn_model(sample=5000)
-                pipeline.save_model(model, scaler, transformer)
+            # Usa os artefatos pré-carregados
+            if artifacts is None:
+                return jsonify({'msg': 'Erro: Artefatos do modelo não foram carregados na inicialização.'}), 500
+            model, scaler, transformer = artifacts['model'], artifacts['scaler'], artifacts['transformer']
                 
             return jsonify(pipeline.predict(model, scaler, transformer, data).to_dict(orient='records'))
         except (ValueError, RuntimeError):
@@ -35,12 +50,24 @@ def predict():
 @app.route('/model/update')
 def retrain():
     
-    try:
-        pipeline = DL_pipeline()
-        
-        model, scaler, transformer = pipeline.create_nn_model(sample=5000)
-        pipeline.save_model(model, scaler, transformer)
-        
-        return jsonify({'msg':'model updated'})
-    except Exception as e:
-        return jsonify({'msg':'An error has occurred during processing', 'error': str(e)})
+    # Esta rota é desativada em produção para evitar o consumo excessivo de recursos.
+    # O retreinamento deve ser feito em um ambiente separado.
+    return jsonify({'msg':'A rota de retreinamento está desativada neste ambiente.'}), 403
+
+# Executa o treinamento na inicialização, ANTES de o Gunicorn iniciar os workers.
+# Isso garante que o modelo esteja pronto quando a aplicação começar a servir.
+def initialize_app():
+    """Função para preparar tudo que a aplicação precisa antes de iniciar."""
+    global artifacts
+    if not os.path.exists('dl_model.pkl'):
+        raise FileNotFoundError("Arquivo de modelo 'dl_model.pkl' não encontrado. Treine o modelo localmente e faça o commit.")
+
+    print("🧠 Carregando artefatos do modelo ('dl_model.pkl') em memória...")
+    artifacts = joblib.load('dl_model.pkl')
+    print("✅ Artefatos do modelo carregados com sucesso.")
+
+initialize_app()
+
+if __name__ == '__main__':
+    # Para desenvolvimento local, o Gunicorn não é usado.
+    app.run(host='0.0.0.0', port=8000, debug=True)

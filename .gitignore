@@ -1,0 +1,24 @@
+# Arquivos de cache e compilados do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+.env/
+
+# Arquivos de modelo e pré-processamento (gerados pelo script)
+# *.pkl  <- Comentado para permitir o commit do modelo treinado
+# *.keras
+ca.pem
+
+# Arquivos de configuração de ambiente (contêm senhas e chaves)
+.env
+
+# Arquivos de sistema operacional e IDEs
+.DS_Store
+.idea/
+.vscode/

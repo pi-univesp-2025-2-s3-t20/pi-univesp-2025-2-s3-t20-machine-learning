@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
 import joblib
+import time
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import os
 
 from rdt import HyperTransformer
-
 from copulas.multivariate import GaussianMultivariate
 from sklearn.ensemble import RandomForestRegressor
 
@@ -21,6 +21,40 @@ load_dotenv()
 
 class ModelPipeline:
     
+    def __init__(self):
+        """
+        Inicializa o pipeline carregando os dados de referência dos produtos
+        uma única vez para evitar consultas repetidas ao banco de dados.
+        """
+        print("📦 Carregando dados de referência dos produtos em memória...")
+        self.produtos_df = self._load_reference_data()
+        print("✅ Dados de referência carregados com sucesso.")
+
+    def _load_reference_data(self):
+        """Carrega a tabela de produtos do banco de dados."""
+        eng = self.get_engine()
+        query = "SELECT produto, categoria, cento_preco, pedido_minimo FROM produtos"
+        df = pd.read_sql(query, eng)
+        df['produto'] = df['produto'].str.lower().str.strip()
+        
+        # Otimiza o uso de memória do DataFrame
+        df = self._optimize_dataframe_memory(df)
+        return df
+
+    def _optimize_dataframe_memory(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Reduz o uso de memória de um DataFrame convertendo os tipos de dados."""
+        print(f"🧠 Otimizando memória... Uso antes: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                # Converte colunas de texto com poucos valores únicos para 'category'
+                if len(df[col].unique()) / len(df[col]) < 0.5:
+                    df[col] = df[col].astype('category')
+            elif df[col].dtype.kind in 'if':
+                # Reduz o tamanho de colunas numéricas (int/float)
+                df[col] = pd.to_numeric(df[col], downcast='float')
+        print(f"✅ Otimização concluída. Uso agora: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+        return df
+
     def get_basedata(self):
         
         eng = self.get_engine()
@@ -93,7 +127,7 @@ class ModelPipeline:
         
         return model.sample(sample) if sample else model.sample(base.shape[0]), transformer
     
-    def create_model(self, sample=False):
+    def _create_model_base(self, sample=False):
         
         base, transformer = self.transform_syntheticdata(sample)
         
@@ -177,25 +211,14 @@ class ModelPipeline:
 
         return best_model, scaler, transformer if transformer else None
     
-    def select_data(self, data):
+    def _select_data_for_prediction(self, data):
         
         if not all(data.columns.isin(['produto','quantidade','preco_unitario','receita_total'])):
             raise ValueError('invalid parameter data')
         
-        eng = self.get_engine()
-        
-        query = '''
-        
-        SELECT 
-        
-        p.produto, p.categoria, p.cento_preco, p.pedido_minimo
-        
-        FROM produtos p
-        '''
-        base = pd.read_sql(query, eng)
-        base = base.dropna()
-        
-        base['produto'] = base['produto'].str.lower().str.strip()
+        # Usa o DataFrame de produtos pré-carregado em vez de consultar o banco
+        base = self.produtos_df.copy()
+
         data['produto'] = data['produto'].str.lower().str.strip()
         
         merged = base.merge(data, how='right', on='produto')
@@ -226,37 +249,41 @@ class ModelPipeline:
         if not isinstance(scaler, StandardScaler) or not isinstance(transformer, HyperTransformer):
             raise ValueError('invalid model, scaler or transformer  parameter')
         
-        
         if not all(data.columns.isin(['produto','quantidade','preco_unitario','receita_total'])):
             raise ValueError('invalid parameter data')
         
-        data_selected = self.select_data(data)
+        data_selected = self._select_data_for_prediction(data)
         transformed = transformer.transform(data_selected)
         data_scaled = scaler.transform(transformed)
         
         predicted = model.predict(data_scaled)
         
         final = transformer.reverse_transform(transformed)
-        final['custo_sugerido'] = np.round(predicted,2)
+        final['custo_sugerido'] = np.round(predicted, 2)
         
         final = pd.concat([final, data.drop(['produto'],axis=1)] , axis=1)
         return final
     
-    def save_model(self, model, transformer):
+    def save_model(self, model, scaler, transformer):
+        """Salva o modelo, scaler e transformer em um único arquivo .pkl."""
+        if not all(isinstance(obj, (RandomForestRegressor, StandardScaler, HyperTransformer)) for obj in [model, scaler, transformer]):
+            raise ValueError('Parâmetros de modelo, scaler ou transformer inválidos.')
         
-        if not isinstance(model, RandomForestRegressor) or not isinstance(transformer, HyperTransformer):
-            raise ValueError('invalid model or transformer parameter')
-        
-        joblib.dump({'model':model, 'transformer':transformer}, 'model.pkl')
+        print(f"\n💾 Salvando artefatos em 'dl_model.pkl'...")
+        joblib.dump({
+            'model': model,
+            'scaler': scaler,
+            'transformer': transformer
+        }, 'dl_model.pkl')
+        print("✅ Artefatos salvos com sucesso!")
         
         
 if __name__ == '__main__':
-    
+    """Este bloco serve para treinar o modelo e salvar os artefatos."""
+    start_time = time.time()
     t = ModelPipeline()
-    model, scaler, transformer = t.tune_model(sample=5000)
-    
-    data = pd.DataFrame([{'produto':'Coxinha de Frango', 'quantidade': 75, 'preco_unitario':0.8, 'receita_total': 60.0}])
-    
-    result = t.predict(model, scaler, transformer, data)
-        
-    print(pd.concat([data,result], axis=1).to_dict())
+    model, scaler, transformer = t.tune_model(sample=5000, n_iter=10) # n_iter reduzido para agilidade
+    t.save_model(model, scaler, transformer)
+    end_time = time.time()
+    duration = end_time - start_time
+    print(f"\n⏱️  Tempo total de treinamento e salvamento: {duration:.2f} segundos")
